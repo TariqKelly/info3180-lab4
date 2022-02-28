@@ -6,8 +6,9 @@ This file creates your application.
 """
 import os
 from app import app
-from flask import render_template, request, redirect, url_for, flash, session, abort
+from flask import render_template, request, redirect, send_from_directory, url_for, flash, session, abort
 from werkzeug.utils import secure_filename
+from app.forms import UploadForm
 
 
 ###
@@ -32,16 +33,33 @@ def upload():
         abort(401)
 
     # Instantiate your form class
-
+    file_folder = app.config['UPLOAD_FOLDER']
+    upload_form = UploadForm()
     # Validate file upload on submit
+    
     if request.method == 'POST':
         # Get file data and save to your uploads folder
+        if upload_form.validate_on_submit():
+            file = upload_form.upload_photo.data
+            file_name = secure_filename(file.filename)
+            file.save(os.path.join(file_folder, file_name))
+            flash('File Saved', 'success')
+            return redirect(url_for('home'))
+        else:
+            flash('Failure in saving file','unsuccessful')
+            return render_template('upload.html', form = upload_form)
+    elif request.method == 'GET':
+        return render_template('upload.html', form = upload_form)
 
-        flash('File Saved', 'success')
-        return redirect(url_for('home'))
+@app.route('/uploads/<filename>')
+def get_image(filename):
+    return send_from_directory(os.getcwd(), app.config['UPLOAD_FOLDER'], filename) 
 
-    return render_template('upload.html')
-
+@app.route('/files')
+def files():
+    if not session.get('logged_in'):
+        abort(401) 
+    return render_template('files.html', images = get_uploaded_images())
 
 @app.route('/login', methods=['POST', 'GET'])
 def login():
@@ -63,6 +81,16 @@ def logout():
     flash('You were logged out', 'success')
     return redirect(url_for('home'))
 
+# Helper Function part
+def get_uploaded_images():
+        file_names = []
+        rootdir = os.getcwd()
+        print(rootdir)
+        for subdir, dirs, files in os.walk(rootdir + app.config['UPLOAD_FOLDER']):
+            for file in files:
+                filenames_lst = os.path.join(subdir,file)
+                file_names.append(os.path.basename(filenames_lst))
+        return file_names
 
 ###
 # The functions below should be applicable to all Flask apps.
